@@ -5,8 +5,12 @@ from colorama import Fore
 '''
 This script use argparse, run 'python copy.py --help' to have more information.
 
+The main objective is to determine what kind of travis test should be run and makes the 
+corresponding checkouts and merge. To do this
+
 $TRAVIS_BRANCH: * For push or builds not triggered by a PR this is the name of the branch.
                 * For builds triggered by a PR this is the name of the branch targered by the PR.
+                * For builds triggered by a TAG, this is the same as the name of the TAG (TRAVIS_TAG).
 $TRAVIS_PULL_REQUEST_BRANCH: * For builds triggered by a PR this is the name of the branch origineted.
                              * For others, this is "" (empty string).
 
@@ -21,47 +25,93 @@ constants = {
     "push": "PUSH"
 }
 
+def get_available_branches(repo):
+    '''
+        Return a list with the names of remotes branches in repo.
+    '''
+    branches = []
+    
+    for branch in repo.remotes.origin.refs:
+        branches.append(branch.name.replace('origin/', ''))
+    
+    return branches
+
+
+def get_available_tags(repo):
+    '''
+        Return a list with the names of tags in repo.
+    '''
+    return [tag.name for tag in repo.tags]
 
 
 def checkout(repo, branch):
     '''
-        This function checkout to branch.
-        Return True if the checkout is successful and False if raise some error.
+        This function check if branch is in the repo, and then checkout. 
+        The argument branch could be a tag.
+        Return True if the checkout is successful and False if the branch or tag 
+        does not exist in repo.
     '''
-    try:
+    # Get the remote branches names and tags names
+    branches = get_available_branches(repo)
+    tags = get_available_tags(repo)
+
+    if branch in branches:
         response = repo.git.checkout(branch)
         cprint(response, 'GREEN')
         cprint("The current branch is " + str(repo.active_branch), color='YELLOW')
+        return True
+    elif branch in tags:
+        repo.git.checkout('tags/' + branch)
+        cprint(f"Checking out tags/{branch}", color='YELLOW')
+        return True
+    
+    return False
 
-    except Exception as error:
-        cprint(str(error), 'RED')
-        cprint("The current branch is " + str(repo.active_branch), color='YELLOW')
-        return False
-    return True
 
-
-def merge(repo, from_branch):
+def merge(repo, target, origin, default = constants['default_branch']):
     '''
-        This function merge the from_branch into the cuurrent brach in the repo.
-        The current branch is repo.active_branch.
-        Return True if the merge is successful and False if raise some error.
+        This function try to merge the origin branch into the target branch.
+        If the target branch is not in the repo, try to merge into the default branch.
+        If the origin branch is not in the report, the result is the checkout to target
+        branch or default branch and return False.
+        If there is any error with git.merge, for example merge conflics, raise it and
+        return False.
+        If the merge is succesful, return True.
     '''
-    try:
-        cprint(f"Start merging {from_branch} into {repo.active_branch}.", color='YELLOW')
-        response = repo.git.merge(from_branch)
-        # This print out all the message abour the merge.
-        cprint(response)
-        cprint("Finish the merge.", color='GREEN')
-    except Exception as error:
-        cprint(str(error), color='RED')
-        return False
-    return True
+    # Try checkout to origin like 'git checkout origin'
+    o_check = checkout(repo, origin)
+    # Try checkout to target like 'git checkout target'    
+    t_check = checkout(repo, target)
+
+    if not t_check:
+        # If target does not exists, checkout to default
+        cprint(f"The target branch: {target} does not exist.", color='YELLOW')
+        cprint(f"Checkout to default branch: {default}.", color='YELLOW')
+        checkout(repo, default)
+
+    if o_check:
+        # If origin exists, merge into default
+        try:
+            cprint(f"Start merging {origin} into {repo.active_branch}.", color='YELLOW')
+            response = repo.git.merge(origin)
+            # This print out all the message about the merge.
+            cprint(response)
+            cprint("Finish the merge.", color='GREEN')
+            return True
+        except Exception as error:
+            cprint(str(error), color='RED')
+    else:
+        cprint(f"The origin branch: {origin} does not exist.", color='YELLOW')
+        cprint(f"Not need to merge.", color='YELLOW')
+
+    return False
 
 
 def clone_repo(url, path):
     '''
-    This function clone a repository form the url to the path.
-    Return a Repo object. Raise and Exception if the repository could not be cloned.
+        This function clone a repository form the url to the path.
+        Return a Repo object.
+        Raise and Exception if the repository could not be cloned.
     '''
     
     # Delete the repository, just to clone_from url and not get an error
@@ -137,6 +187,9 @@ def validate_args():
         
         if args.target:
             cprint(f"Found env variable TRAVIS_BRANCH with value '{args.target}'.")
+        else:
+            cprint(f"Not found env variable TRAVIS_BRANCH.", color='YELLOW')
+
 
     
     if args.origin:
@@ -156,19 +209,31 @@ def validate_args():
             # If TRAVIS_PULL_REQUEST_BRANCH isn't set,
             # so the current travis test is 'PUSH'
             args.test = constants['push']
-            cprint(f"Not found env variable TRAVIS_PULL_REQUEST_BRANCH.")
+            cprint(f"Not found env variable TRAVIS_PULL_REQUEST_BRANCH.", color='YELLOW')
 
     return args
 
 
 def cprint(string, color = None):
     '''
-    This function print the string with color.
-    The default value is WHITE, is the color argument is not
+    This function print the argument string with color.
+    The default value is WHITE, if the color argument is not
     an attribute of Fore, the default value is used.
     '''
     color = getattr(Fore, str(color), Fore.WHITE)
-    print(color + string + Fore.RESET)
+    print(color + str(string) + Fore.RESET)
+
+
+def get_path(url_address):
+    '''
+        Take an url address of a repository and return the last name without ".git".
+        Example:
+            url_address = https://github.com/openworm/org.geppetto.git
+            return =>  org.geppetto
+    '''
+    path = url_address.split('/')[-1]
+    return path.replace(".git", "")
+
 
 def main():
     
@@ -198,52 +263,24 @@ def main():
     cprint("-----------------------------------\n")
     
     # Define the directory name for the repository cloned
-    clone_to_path = clone_url.split('/')[-1]
-    clone_to_path = clone_to_path.replace(".git", "")
+    clone_to_path = get_path(clone_url)
 
     # Clone the repository
     repo = clone_repo(clone_url, clone_to_path)
     cprint("-----------------------------------\n")
 
     if test_type == constants['pr']:
-        # Try checkout to origin_branch like 'git checkout origin_branch'
-        if origin_branch:
-            origin_check = checkout(repo, origin_branch)
-        else:
-            origin_check = False
-        
-        
+        # Try to merge origin_branch into target_branch
+        merge(repo, target_branch, origin_branch, default_branch)
+    else: 
+        # If test_type=='PUSH'
         # Try checkout to target_branch like 'git checkout target_branch'
-        if target_branch:
-            target_check = checkout(repo, target_branch)
-        else:
-            target_check = False
-        
+        target_check = checkout(repo, target_branch)
 
-        if not target_check: # If target_branch does not exists
-
-            # Checkout to default_branch
-            checkout(repo, default_branch)
-            
-
-            if origin_check: # If origin_branch exists, merge into default_branch
-                merge(repo, origin_branch)
-        
-        else: # If target_branch exists
-
-            if origin_check: # If origin_branch exists, merge into target_branch
-                merge(repo, origin_branch)
-        
-
-    else: # This is test_type=='PUSH'
-        
-        # Try checkout to target_branch like 'git checkout target_branch'
-        if target_branch:
-            target_check = checkout(repo, target_branch)
-        else:
-            target_check = False
-        
-        if not target_check: # If target_branch does not exists
+        if not target_check:
+            # If target_branch does not exists
+            cprint(f"The target branch: {target_branch} does not exist.", color='YELLOW')
+            cprint(f"Checkout to default branch: {default_branch}.", color='YELLOW')
             checkout(repo, default_branch)
         
     # Close the repo and delete de variable
