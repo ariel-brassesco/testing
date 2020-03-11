@@ -1,3 +1,2 @@
-colorama==0.4.3
 gitdb2==2.0.6
 GitPython==3.0.5

@@ -1,8 +1,17 @@
 import pytest
 from git import Repo
 import repo_copy as rc
-import os, shutil    
+import os, shutil
+import random
 
+def gen_random_branch(branch_name):
+    # Convert string to list
+    lst = list(branch_name)
+    # Ramdonize the list
+    random.shuffle(lst)
+    # Return a new string
+    return ''.join(lst)
+    
 def test_get_parse_args():
     # Input
     url = 'https://github.com/openworm/org.geppetto.git'
@@ -93,9 +102,15 @@ def test_checkout():
     url = 'https://github.com/openworm/org.geppetto.git'
     path = rc.get_path(url)
     repo = rc.clone_repo(url, path)
+    branches = rc.get_available_branches(repo)
+    # Remove the HEAD branch
+    branches.remove('HEAD')
+    # Ramdonize the branch list
+    random.shuffle(branches)
 
-    branch_exist = 'feature_623'
-    branch_not_exist = 'feature/33'
+    branch_exist = branches.pop()
+    # Generate a random name branch
+    branch_not_exist = gen_random_branch(branches.pop())
     default = 'development'
 
     # Check the checkout function return True
@@ -117,17 +132,24 @@ def test_checkout():
     if os.path.exists(path):
         shutil.rmtree(path)
 
+# The target_exist and origin_exist were selected to merge without error
+# could not be choosen randomly becuase we want to assert the correct merge sometimes.
 def test_merge():
     # Input data
     url = 'https://github.com/openworm/org.geppetto.git'
     path = rc.get_path(url)
     repo = rc.clone_repo(url, path)
-    
+    branches = rc.get_available_branches(repo)
+    # Remove the HEAD branch
+    branches.remove('HEAD')
+    # Ramdonize the branch list
+    random.shuffle(branches)
+
     target_exist = 'feature_623'
-    target_no_exist = 'feature_72'
+    target_no_exist = gen_random_branch(branches.pop())
     origin_exist = 'feature/621'
     origin_merge_conflict = 'feature/35'
-    origin_no_exist = 'feature/33'
+    origin_no_exist = gen_random_branch(branches.pop())
     default = 'development'
 
     # Check merge() return False if target and origin not exist
@@ -168,10 +190,10 @@ def test_no_default_branch():
     target_branch = None
     
     with pytest.raises(rc.DefaultBranchNotProvided) as e:
-        rc.pr(repo, target_branch, origin_branch, default_branch)
+        rc.travis_pr(repo, target_branch, origin_branch, default_branch)
     
     with pytest.raises(rc.DefaultBranchNotProvided) as e:
-        rc.push(repo, target_branch, default_branch)
+        rc.travis_push(repo, target_branch, default_branch)
 
     # Delete the repo
     repo.close()
@@ -184,15 +206,21 @@ def test_no_exist_default_branch():
     url = 'https://github.com/openworm/org.geppetto.git'
     path = rc.get_path(url)
     repo = rc.clone_repo(url, path)
-    default_branch = 'feature/33'
+    branches = rc.get_available_branches(repo)
+    # Remove the HEAD branch
+    branches.remove('HEAD')
+    # Ramdonize the branch list
+    random.shuffle(branches)
+    
+    default_branch = gen_random_branch(branches.pop())
     origin_branch = None
     target_branch = None
     
     with pytest.raises(rc.DefaultBranchNotFound) as e:
-        rc.pr(repo, target_branch, origin_branch, default_branch)
+        rc.travis_pr(repo, target_branch, origin_branch, default_branch)
     
     with pytest.raises(rc.DefaultBranchNotFound) as e:
-        rc.push(repo, target_branch, default_branch)
+        rc.travis_push(repo, target_branch, default_branch)
 
     # Delete the repo
     repo.close()
@@ -200,22 +228,28 @@ def test_no_exist_default_branch():
     if os.path.exists(path):
         shutil.rmtree(path)
 
-def test_push():
+def test_travis_push():
     # Input data
     url = 'https://github.com/openworm/org.geppetto.git'
     path = rc.get_path(url)
     repo = rc.clone_repo(url, path)
+    branches = rc.get_available_branches(repo)
+    # Remove the HEAD branch
+    branches.remove('HEAD')
+    # Ramdonize the branch list
+    random.shuffle(branches)
+
     default_branch = 'development'
-    target_exist = 'feature/72'
-    target_not_exist = 'feature_72'
+    target_exist = branches.pop()
+    target_not_exist = gen_random_branch(branches.pop())
 
     # Check the push return True
-    assert rc.push(repo, target_exist, default_branch)
+    assert rc.travis_push(repo, target_exist, default_branch)
     # Check the active_branch is target
     assert str(repo.active_branch) == target_exist
     
     # Check the push return True
-    assert rc.push(repo, target_not_exist, default_branch)
+    assert rc.travis_push(repo, target_not_exist, default_branch)
     # Check the active_branch is target
     assert str(repo.active_branch) == default_branch
     
@@ -225,39 +259,46 @@ def test_push():
     if os.path.exists(path):
         shutil.rmtree(path)
 
-def test_pr():
+# See the comment for test_merge().
+def test_travis_pr():
     # Input data
     url = 'https://github.com/openworm/org.geppetto.git'
     path = rc.get_path(url)
     repo = rc.clone_repo(url, path)
+    branches = rc.get_available_branches(repo)
+    # Remove the HEAD branch
+    branches.remove('HEAD')
+    # Ramdonize the branch list
+    random.shuffle(branches)
+
     default_branch = 'development'
-    target_exist = 'feature/72'
-    target_no_exist = 'feature_72'
+    target_exist = 'feature_623'
+    target_no_exist = gen_random_branch(branches.pop())
     origin_exist = 'feature/621'
-    origin_no_exist = 'feature/33'
+    origin_no_exist = gen_random_branch(branches.pop())
 
     # Check the pr return False
-    assert not rc.pr(repo, None, None, default_branch)
+    assert not rc.travis_pr(repo, None, None, default_branch)
     # Check the active_branch is default_target
     assert str(repo.active_branch) == default_branch
 
     # Check the pr return False
-    assert not rc.pr(repo, target_no_exist, origin_no_exist, default_branch)
+    assert not rc.travis_pr(repo, target_no_exist, origin_no_exist, default_branch)
     # Check the active_branch is default_target
     assert str(repo.active_branch) == default_branch
 
     # Check the pr return True
-    assert rc.pr(repo, target_exist, origin_exist, default_branch)
+    assert rc.travis_pr(repo, target_exist, origin_exist, default_branch)
     # Check the active_branch is target_exist
     assert str(repo.active_branch) == target_exist
 
     # Check the pr return False
-    assert not rc.pr(repo, target_exist, origin_no_exist, default_branch)
+    assert not rc.travis_pr(repo, target_exist, origin_no_exist, default_branch)
     # Check the active_branch is target_exist
     assert str(repo.active_branch) == target_exist
 
     # Check the pr return True
-    assert rc.pr(repo, target_no_exist, origin_exist, default_branch)
+    assert rc.travis_pr(repo, target_no_exist, origin_exist, default_branch)
     # Check the active_branch is target_exist
     assert str(repo.active_branch) == default_branch
 

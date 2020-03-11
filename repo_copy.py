@@ -228,26 +228,19 @@ def validate_args(args=None):
             cprint(f"env var TRAVIS_BRANCH found: '{args.target}'.")
         else:
             cprint(f"Not TARGET branch provided", color='RED')
-    
-    #if args.origin:
-        # Set the current travis test as 'PR'
-        #args.test = constants['pr']
-    #else:
-    if args.origin == None:    
-        # If origin branch not passed set as TRAVIS_PULL_REQUEST_BRANCH enviroment variable
+    # If origin branch not passed set as TRAVIS_PULL_REQUEST_BRANCH enviroment variable
+    if args.origin == None:
         args.origin = os.environ.get('TRAVIS_PULL_REQUEST_BRANCH')
         
         if args.origin:
             # If TRAVIS_PULL_REQUEST_BRANCH is set,
             # so the current travis test is 'PR'
-            #args.test = constants['pr']
             cprint(f"env var TRAVIS_PULL_REQUEST_BRANCH found: '{args.origin}'.")
         else: 
             # If TRAVIS_PULL_REQUEST_BRANCH isn't set,
             # so the current travis test is 'PUSH'
-            #args.test = constants['push']
             cprint(f"No ORIGIN branch provided.", color='RED')
-
+    # Set the test type
     if os.environ.get('TRAVIS_PULL_REQUEST') == 'false':
         args.test = constants['push']
     else: 
@@ -288,7 +281,7 @@ def print_info(url, travis_type, target, origin, default):
     cprint(f"Default branch:      {default}.")
     cprint("-----------------------------------\n")
 
-def pr(repo, target, origin, default):
+def travis_pr(repo, target, origin, default):
     '''
         Try to merge the origin branch into the target.
         If target doesn't exists in repo, try to merge into default branch.
@@ -299,7 +292,7 @@ def pr(repo, target, origin, default):
     # Try to merge origin_branch into target_branch
     return merge(repo, target, origin, default)
 
-def push(repo, target, default):
+def travis_push(repo, target, default):
     '''
         Checkout to target branch, if it doesn't exist in repo checkout to default branch.
     '''
@@ -332,9 +325,9 @@ def travis_test_run(url_address, travis_type, target, origin, default):
     cprint("-----------------------------------\n")
 
     if travis_type == 'pr':
-        return pr(repo, target, origin, default)
+        return travis_pr(repo, target, origin, default)
     elif travis_type == 'push':
-        return push(repo, target, default)
+        return travis_push(repo, target, default)
     else:
         raise TravisTestDoesNotExist(f"({travis_test} is not a valid Travis test type.)")
 
