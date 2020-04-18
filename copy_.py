@@ -10,8 +10,8 @@ DESCRIPTION
     This module aims to execute git commands to clone a repository, checkout and merge 
     branches, taking into account if the request is a PUSH or PULL REQUEST. 
 
-    It can works with travis env variables, and in fact it can determine the travis 
-    actions (PUSH or PULL REQUEST) based on DEFAULT TRAVIS ENVIRONMENT VARIABLES:
+    It can works with travis env variables, and if the action type (PUSH or PULL REQUEST) 
+    is not passed it will be determine based on DEFAULT TRAVIS ENVIRONMENT VARIABLES:
 
     TRAVIS_BRANCH: * For push or builds not triggered by a PR this is the name of the branch.
                    * For builds triggered by a PR this is the name of the branch targered by the PR.
@@ -21,7 +21,7 @@ DESCRIPTION
     TRAVIS_PULL_REQUEST:   * It is the number of PR.
                            * For PUSH is set to "false".
     (See https://docs.travis-ci.com/user/environment-variables/#default-environment-variables)
-
+    
     The module use argparse to allow command-line arguments. Run 'python copy_.py --help'
     for more information.
 
@@ -58,12 +58,15 @@ EXCEPTIONS:
 '''
 
 # Define some constants
-DEFAULT_BRANCH = 'master'
 TRAVIS_PULL_REQUEST = 'TRAVIS_PULL_REQUEST'
 TRAVIS_ORIGIN_ENV_NAME = 'TRAVIS_PULL_REQUEST_BRANCH'
 TRAVIS_TARGET_ENV_NAME = 'TRAVIS_BRANCH'
 TRAVIS_TYPE_PR = 'pr'
 TRAVIS_TYPE_PUSH = 'push'
+DEFAULT_BRANCH = os.getenv('DEFAULT_BRANCH')
+
+if not DEFAULT_BRANCH:
+    DEFAULT_BRANCH = 'master'
 
 # Define Exceptions
 class DefaultBranchNotFound(Exception):
@@ -170,12 +173,12 @@ class TravisRepoAction():
 
         # Delete the repository, just to clone_from url and not get an error
         if os.path.exists(self.path):
-            print_colored(f"The directory {self.path} already exist. Will be delete.")
+            print_colored("The directory {} already exist. Will be delete.".format(self.path))
             shutil.rmtree('/'.join([os.getcwd(), self.path]))
 
         # Clone the repo
         try:
-            print_colored(f"Cloning {self.url}.")
+            print_colored("Cloning {}.".format(self.url))
             
             # Clone the master branch
             self.repo = Repo.clone_from(url=self.url, to_path=self.path)
@@ -183,7 +186,8 @@ class TravisRepoAction():
             print_colored("The repository was cloned successfully.", color='GREEN')
 
         except Exception as error:
-            print_colored(f"The repository could not be clone from the {self.url} to {self.path}.", color='RED')
+            print_colored("The repository could not be clone from the {0} to {1}.".format(self.url, self.path),
+                        color='RED')
             print_colored(str(error), color='RED')
             raise Exception()
 
@@ -191,7 +195,7 @@ class TravisRepoAction():
         '''
         Delete the '.git' in the path.
         '''
-        print_colored(f"Deleting the '.git'.")
+        print_colored("Deleting the '.git'.")
         shutil.rmtree('/'.join([os.getcwd(), self.path, '.git']))
         print_colored("-----------------------------------\n")
 
@@ -291,10 +295,10 @@ class TravisRepoAction():
         if not self.is_repo_branch(default_branch):
 
             if default_branch == 'master':
-                raise DefaultBranchNotFound(f'default_branch={default_branch} does not exist.'
-                                            ' Set a valid default_branch.')
+                raise DefaultBranchNotFound('default_branch={} does not exist. '
+                                        'Set a valid default_branch.'.format(default_branch))
         
-            raise DefaultBranchNotExists(f'default_branch provided does not exist.')
+            raise DefaultBranchNotExists('default_branch provided does not exist.')
         
         return default_branch
 
@@ -316,7 +320,7 @@ class TravisRepoAction():
                 The travis action type.
         '''
         if action_type not in TravisRepoAction.ACTION_TYPES:
-            raise ActionTypeError(f"The 'action_type' must be {' or '.join(TravisRepoAction.ACTION_TYPES)}")
+            raise ActionTypeError("The 'action_type' must be {}.".format(' or '.join(TravisRepoAction.ACTION_TYPES)))
         return action_type
 
     def print_input_data(self):
@@ -331,12 +335,12 @@ class TravisRepoAction():
 
         print_colored("\nDATA INPUT")
         print_colored("###################################")
-        print_colored(f"Repository url:      {self.url}.")
-        print_colored(f"Travis action type:    {self.action_type}.")
+        print_colored("Repository url:         {}".format(self.url))
+        print_colored("Travis action type:     {}".format(self.action_type))
         print_colored("-----------------------------------")
-        print_colored(f"Origin branch:       {self.origin_branch}.")
-        print_colored(f"Target branch:       {self.target_branch}.")
-        print_colored(f"Default branch:      {self.default_branch}.")
+        print_colored("Origin branch:          {}".format(self.origin_branch))
+        print_colored("Target branch:          {}".format(self.target_branch))
+        print_colored("Default branch:         {}".format(self.default_branch))
         print_colored("-----------------------------------\n")
 
     def checkout(self, branch):
@@ -359,7 +363,7 @@ class TravisRepoAction():
             return True
         elif self.is_repo_tag(branch):
             self.repo.git.checkout('tags/' + branch)
-            print_colored(f"Checkout tags/{branch}", color='GREEN')
+            print_colored("Checkout tags/{}".format(branch), color='GREEN')
             return True
         
         return False
@@ -393,7 +397,7 @@ class TravisRepoAction():
 
         if o_check:
             try:
-                print_colored(f"Merge {self.origin_branch} into {self.repo.active_branch}.")
+                print_colored("Merge {0} into {1}.".format(self.origin_branch, self.repo.active_branch))
                 response = self.repo.git.merge(self.origin_branch)
                 # This print out all the message about the merge.
                 print_colored(response)
@@ -401,8 +405,8 @@ class TravisRepoAction():
             except Exception as error:
                 raise MergeError(str(error))
         else:
-            print_colored(f"The origin branch: {self.origin_branch} does not exist.")
-            print_colored(f"Not need to merge.")
+            print_colored("The origin branch: {} does not exist.".format(self.origin_branch))
+            print_colored("Not need to merge.")
             pass
 
         return False
@@ -486,7 +490,7 @@ class TravisRepoAction():
         elif self.action_type == TravisRepoAction.ACTION_TYPES[1]:
             self.pr()
         else:
-            raise ActionTypeError(f"The 'action_type' must be {' or '.join(TravisRepoAction.ACTION_TYPES)}")
+            raise ActionTypeError("The 'action_type' must be {}".format(' or '.join(TravisRepoAction.ACTION_TYPES)))
 
 # Define Functions
 def print_colored(string, color = 'WHITE'):
@@ -511,11 +515,11 @@ def get_env_var(var_name, default = None):
     or argument default otherwise.
     '''
     if var_name in os.environ:
-        env_var = os.environ.get(var_name)
-        print_colored(f"env var {var_name} found: '{env_var}'.")
+        env_var = os.getenv(var_name)
+        print_colored("env var {0} found: '{1}'.".format(var_name, env_var))
     else:
         env_var = default
-        print_colored(f"env var {var_name} not found. Set default value: {default}")
+        print_colored("env var {0} not found. Set default value: {1}".format(var_name, default))
     return env_var
 
 def get_parse_args(args=None):
@@ -608,7 +612,7 @@ def validate_args(args=None):
     # Set the travis test type
     if args.pr:
         args.travis_action_type = TRAVIS_TYPE_PR
-    elif args.push or (os.environ.get('TRAVIS_PULL_REQUEST') == 'false'):
+    elif args.push or (os.getenv('TRAVIS_PULL_REQUEST') == 'false'):
         args.travis_action_type = TRAVIS_TYPE_PUSH
     else: 
         args.travis_action_type = TRAVIS_TYPE_PR

@@ -33,6 +33,8 @@ The **copy_.py** could also work with Travis Environment Variables to determine 
 * It is the number of *PR*.
 * For *PUSH* is set to "false".
 
+The default branch is set as `'master'` if the enviroment variable **DEFAULT_BRANCH** is not set.
+
 If the names of branches or the action type (PUSH or PR) aren't provided, they will be found in the environment variables described above.
 
 Finally, the **copy_.py** also use the library `argparse` to allow the command-line arguments. Run `python copy_.py --help` for more information.
