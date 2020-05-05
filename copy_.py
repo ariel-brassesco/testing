@@ -343,6 +343,13 @@ class TravisRepoAction():
         print_colored("Default branch:         {}".format(self.default_branch))
         print_colored("-----------------------------------\n")
 
+    def set_credentials(self, name='Your Name', email='you@example.com'):
+        '''
+        Set your name and email credentials for git repository.
+        '''
+        self.repo.config_writer().set_value("user", "name", name).release()
+        self.repo.config_writer().set_value("user", "email", email).release()
+
     def checkout(self, branch):
         '''
         Check if branch argument is in repo attribute, and then checkout. 
@@ -633,6 +640,7 @@ def main():
                                 action_type=data.travis_action_type)
 
     # Run the TravisCI test
+    travis_repo.set_credentials()
     travis_repo.run()
     travis_repo.del_git_file()
     
