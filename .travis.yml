@@ -1,3 +1,14 @@
 language: node_js
+os: linux
+sudo: required
+dist: trusty
+bundler_args: --retry 5
+services:
+  - docker
 script:
+  - docker --version 
+  - echo "$TRAVIS_BRANCH"
+  - echo "$TRAVIS_PULL_REQUEST_BRANCH"
   - echo "$TRAVIS_PULL_REQUEST"
+  - travis_retry docker build -t="geppetto" --build-arg targetBranch=$TRAVIS_BRANCH --build-arg originBranch=$TRAVIS_PULL_REQUEST_BRANCH --build-arg defaultBranch=development --build-arg pullRequest=$TRAVIS_PULL_REQUEST .
+  
