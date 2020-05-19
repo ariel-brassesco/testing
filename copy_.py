@@ -410,7 +410,8 @@ class TravisRepoAction():
                 print_colored(response)
                 return True
             except Exception as error:
-                raise MergeError(str(error))
+                #raise MergeError(str(error))
+                print_colored(str(error), color='RED')
         else:
             print_colored("The origin branch: {} does not exist.".format(self.origin_branch))
             print_colored("Not need to merge.")
@@ -630,7 +631,6 @@ def main():
     
     # Take the arguments from command-line and set the variables.
     data = validate_args(sys.argv[1:])
-    
     travis_repo = TravisRepoAction(url=data.url,
                                 path=None,
                                 clone_repo=True,
